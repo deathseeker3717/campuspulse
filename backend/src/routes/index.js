@@ -1,7 +1,9 @@
 const express = require('express')
 const pool = require('../config/db')
+const studentsRoutes = require('./students')
 
 const router = express.Router()
+router.use('/students', studentsRoutes)
 
 // API health check
 router.get('/health', (req, res) => {
