@@ -170,4 +170,185 @@ router.post('/', async (req, res) => {
     }
 })
 
+// Update a student
+router.put('/:id', async (req, res) => {
+    try {
+        const studentId = Number(req.params.id)
+
+        if (!Number.isSafeInteger(studentId) || studentId < 1) {
+            return res.status(400).json({
+                message: 'Invalid student ID'
+            })
+        }
+
+        const { name, email, roll_no, department, year, phone } = req.body || {}
+
+        const studentName = typeof name === 'string' ? name.trim() : ''
+        const studentEmail = typeof email === 'string' ? email.trim() : ''
+        const rollNumber = typeof roll_no === 'string' ? roll_no.trim() : ''
+        const departmentCode = typeof department === 'string' ? department.trim().toUpperCase() : ''
+        const academicYear = Number(year)
+        const studentPhone = typeof phone === 'string' ? phone.trim() : ''
+
+        if (!studentName || !studentEmail || !rollNumber || !departmentCode || !year) {
+            return res.status(400).json({
+                message: 'Please provide all required student details'
+            })
+        }
+
+        if (
+            studentName.length > 100 ||
+            studentEmail.length > 254 ||
+            rollNumber.length > 20
+        ) {
+            return res.status(400).json({
+                message: 'One or more fields exceed the allowed length'
+            })
+        }
+
+        if (!/^\S+@\S+\.\S+$/.test(studentEmail)) {
+            return res.status(400).json({
+                message: 'Please provide a valid email'
+            })
+        }
+
+        if (!Number.isInteger(academicYear) || academicYear < 1 || academicYear > 4) {
+            return res.status(400).json({
+                message: 'Academic year must be between 1 and 4'
+            })
+        }
+
+        if (studentPhone && !/^\d{10}$/.test(studentPhone)) {
+            return res.status(400).json({
+                message: 'Phone must contain 10 digits'
+            })
+        }
+
+        const departmentResult = await pool.query(
+            'SELECT id FROM departments WHERE code = $1',
+            [departmentCode]
+        )
+
+        if (departmentResult.rowCount === 0) {
+            return res.status(400).json({
+                message: 'Invalid department'
+            })
+        }
+
+        const result = await pool.query(
+            `UPDATE students
+             SET name = $2,
+                 email = $3,
+                 roll_no = $4,
+                 department_id = $5,
+                 year = $6,
+                 phone = $7
+             WHERE id = $1
+             RETURNING id, name, email, roll_no, year, phone`,
+            [
+                studentId,
+                studentName,
+                studentEmail,
+                rollNumber,
+                departmentResult.rows[0].id,
+                academicYear,
+                studentPhone || null
+            ]
+        )
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                message: 'Student not found'
+            })
+        }
+
+        res.json({
+            ...result.rows[0],
+            department: departmentCode
+        })
+    } catch (error) {
+        if (error.code === '23505') {
+            return res.status(409).json({
+                message: 'A student with this email or roll number already exists'
+            })
+        }
+
+        console.error('Error updating student:', error.message)
+
+        res.status(500).json({
+            message: 'Could not update student'
+        })
+    }
+})
+
+// Delete a student and their related records
+router.delete('/:id', async (req, res) => {
+    const studentId = Number(req.params.id)
+
+    if (!Number.isSafeInteger(studentId) || studentId < 1) {
+        return res.status(400).json({
+            message: 'Invalid student ID'
+        })
+    }
+
+    let client
+
+    try {
+        client = await pool.connect()
+
+        await client.query('BEGIN')
+
+        const studentResult = await client.query(
+            'SELECT id FROM students WHERE id = $1 FOR UPDATE',
+            [studentId]
+        )
+
+        if (studentResult.rowCount === 0) {
+            await client.query('ROLLBACK')
+
+            return res.status(404).json({
+                message: 'Student not found'
+            })
+        }
+
+        await client.query(
+            `DELETE FROM attendance a
+             USING registrations r
+             WHERE a.registration_id = r.id
+             AND r.student_id = $1`,
+            [studentId]
+        )
+
+        await client.query(
+            'DELETE FROM registrations WHERE student_id = $1',
+            [studentId]
+        )
+
+        await client.query(
+            'DELETE FROM students WHERE id = $1',
+            [studentId]
+        )
+
+        await client.query('COMMIT')
+
+        res.json({
+            success: true
+        })
+    } catch (error) {
+        if (client) {
+            await client.query('ROLLBACK').catch(() => {})
+        }
+
+        console.error('Error deleting student:', error.message)
+
+        res.status(500).json({
+            message: 'Could not delete student'
+        })
+    } finally {
+        if (client) {
+            client.release()
+        }
+    }
+})
+
 module.exports = router
