@@ -81,4 +81,93 @@ router.get('/', async (req, res) => {
     }
 })
 
+// Create a student
+router.post('/', async (req, res) => {
+    try {
+        const { name, email, roll_no, department, year, phone } = req.body || {}
+
+        const studentName = typeof name === 'string' ? name.trim() : ''
+        const studentEmail = typeof email === 'string' ? email.trim() : ''
+        const rollNumber = typeof roll_no === 'string' ? roll_no.trim() : ''
+        const departmentCode = typeof department === 'string' ? department.trim().toUpperCase() : ''
+        const academicYear = Number(year)
+        const studentPhone = typeof phone === 'string' ? phone.trim() : ''
+
+        if (!studentName || !studentEmail || !rollNumber || !departmentCode || !year) {
+            return res.status(400).json({
+                message: 'Please provide all required student details'
+            })
+        }
+
+        if (
+            studentName.length > 100 ||
+            studentEmail.length > 254 ||
+            rollNumber.length > 20
+        ) {
+            return res.status(400).json({
+                message: 'One or more fields exceed the allowed length'
+            })
+        }
+
+        if (!/^\S+@\S+\.\S+$/.test(studentEmail)) {
+            return res.status(400).json({
+                message: 'Please provide a valid email'
+            })
+        }
+
+        if (!Number.isInteger(academicYear) || academicYear < 1 || academicYear > 4) {
+            return res.status(400).json({
+                message: 'Academic year must be between 1 and 4'
+            })
+        }
+
+        if (studentPhone && !/^\d{10}$/.test(studentPhone)) {
+            return res.status(400).json({
+                message: 'Phone must contain 10 digits'
+            })
+        }
+
+        const result = await pool.query(
+            `INSERT INTO students (
+                name, email, roll_no, department_id, year, phone
+            )
+            SELECT $1, $2, $3, d.id, $5, $6
+            FROM departments d
+            WHERE d.code = $4
+            RETURNING id, name, email, roll_no, year, phone`,
+            [
+                studentName,
+                studentEmail,
+                rollNumber,
+                departmentCode,
+                academicYear,
+                studentPhone || null
+            ]
+        )
+
+        if (result.rowCount === 0) {
+            return res.status(400).json({
+                message: 'Invalid department'
+            })
+        }
+
+        res.status(201).json({
+            ...result.rows[0],
+            department: departmentCode
+        })
+    } catch (error) {
+        if (error.code === '23505') {
+            return res.status(409).json({
+                message: 'A student with this email or roll number already exists'
+            })
+        }
+
+        console.error('Error creating student:', error.message)
+
+        res.status(500).json({
+            message: 'Could not create student'
+        })
+    }
+})
+
 module.exports = router
