@@ -3,12 +3,12 @@ const pool = require('../config/db')
 
 const router = express.Router()
 
-// Helper to format a registration row with correct types and joined fields
+// Helper to format a registration row with consistent string BIGINT identifiers and joined fields
 function formatRegistration(row) {
     return {
-        id: Number(row.id),
-        student_id: Number(row.student_id),
-        event_id: Number(row.event_id),
+        id: String(row.id),
+        student_id: String(row.student_id),
+        event_id: String(row.event_id),
         registered_at: row.registered_at,
         student_name: row.student_name,
         roll_no: row.roll_no,
@@ -123,9 +123,9 @@ router.post('/', async (req, res) => {
         client = await pool.connect()
         await client.query('BEGIN')
 
-        // 1. Verify student exists
+        // 1. Verify student exists and is active
         const studentCheck = await client.query(
-            'SELECT id, name FROM students WHERE id = $1',
+            'SELECT id, name, status FROM students WHERE id = $1',
             [studentId]
         )
 
@@ -136,9 +136,25 @@ router.post('/', async (req, res) => {
             })
         }
 
-        // 2. Lock event row to check existence and prevent overselling capacity
+        if (studentCheck.rows[0].status !== 'active') {
+            await client.query('ROLLBACK')
+            return res.status(400).json({
+                message: 'Inactive students cannot register for events'
+            })
+        }
+
+        // 2. Lock event row to check existence, status, registration deadline, and capacity
         const eventCheck = await client.query(
-            'SELECT id, title, capacity, status FROM events WHERE id = $1 FOR UPDATE',
+            `SELECT
+                id,
+                title,
+                capacity,
+                status,
+                registration_deadline,
+                (registration_deadline IS NOT NULL AND registration_deadline < NOW()) AS is_deadline_passed
+             FROM events
+             WHERE id = $1
+             FOR UPDATE`,
             [eventId]
         )
 
@@ -146,6 +162,24 @@ router.post('/', async (req, res) => {
             await client.query('ROLLBACK')
             return res.status(404).json({
                 message: 'Event not found'
+            })
+        }
+
+        const event = eventCheck.rows[0]
+
+        // Only allow registration for published events (reject draft, cancelled, completed)
+        if (event.status !== 'published') {
+            await client.query('ROLLBACK')
+            return res.status(409).json({
+                message: `Cannot register for a ${event.status} event`
+            })
+        }
+
+        // Validate registration deadline against PostgreSQL NOW()
+        if (event.is_deadline_passed) {
+            await client.query('ROLLBACK')
+            return res.status(409).json({
+                message: 'Registration deadline has passed'
             })
         }
 
@@ -162,7 +196,7 @@ router.post('/', async (req, res) => {
             })
         }
 
-        // 4. Check event capacity against current registered count
+        // 4. Check event capacity against active registrations count
         const capacityCheck = await client.query(
             `SELECT COUNT(*) AS total
              FROM registrations
@@ -171,7 +205,7 @@ router.post('/', async (req, res) => {
         )
 
         const currentRegistered = Number(capacityCheck.rows[0].total)
-        const eventCapacity = Number(eventCheck.rows[0].capacity)
+        const eventCapacity = Number(event.capacity)
 
         if (currentRegistered >= eventCapacity) {
             await client.query('ROLLBACK')
@@ -184,6 +218,12 @@ router.post('/', async (req, res) => {
         let registrationId
 
         if (existingReg.rowCount > 0) {
+            // Clear any old attendance record from previous registration
+            await client.query(
+                'DELETE FROM attendance WHERE registration_id = $1',
+                [existingReg.rows[0].id]
+            )
+
             const updateResult = await client.query(
                 `UPDATE registrations
                  SET status = 'registered',
@@ -253,7 +293,7 @@ router.post('/', async (req, res) => {
 })
 
 // DELETE /api/registrations/:id
-// Remove a registration
+// Cancel a registration (soft cancellation preserving history)
 router.delete('/:id', async (req, res) => {
     const registrationId = Number(req.params.id)
 
@@ -270,7 +310,7 @@ router.delete('/:id', async (req, res) => {
         await client.query('BEGIN')
 
         const registrationResult = await client.query(
-            'SELECT id FROM registrations WHERE id = $1 FOR UPDATE',
+            'SELECT id, status FROM registrations WHERE id = $1 FOR UPDATE',
             [registrationId]
         )
 
@@ -281,15 +321,19 @@ router.delete('/:id', async (req, res) => {
             })
         }
 
-        // Remove attendance record first to respect ON DELETE RESTRICT foreign key
-        await client.query(
-            'DELETE FROM attendance WHERE registration_id = $1',
-            [registrationId]
-        )
+        if (registrationResult.rows[0].status === 'cancelled') {
+            await client.query('ROLLBACK')
+            return res.status(400).json({
+                message: 'Registration is already cancelled'
+            })
+        }
 
-        // Remove the registration
+        // Soft-cancel: preserve registration row and set status to cancelled with timestamp
         await client.query(
-            'DELETE FROM registrations WHERE id = $1',
+            `UPDATE registrations
+             SET status = 'cancelled',
+                 cancelled_at = NOW()
+             WHERE id = $1`,
             [registrationId]
         )
 
@@ -297,17 +341,17 @@ router.delete('/:id', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Registration removed successfully'
+            message: 'Registration cancelled successfully'
         })
     } catch (error) {
         if (client) {
             await client.query('ROLLBACK').catch(() => {})
         }
 
-        console.error('Error deleting registration:', error.message)
+        console.error('Error cancelling registration:', error.message)
 
         res.status(500).json({
-            message: 'Could not delete registration'
+            message: 'Could not cancel registration'
         })
     } finally {
         if (client) {
