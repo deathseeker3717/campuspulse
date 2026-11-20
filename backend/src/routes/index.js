@@ -3,11 +3,13 @@ const pool = require('../config/db')
 const studentsRoutes = require('./students')
 const attendanceRoutes = require('./attendance')
 const analyticsRoutes = require('./analytics')
+const registrationsRoutes = require('./registrations')
 
 const router = express.Router()
 router.use('/students', studentsRoutes)
 router.use('/attendance', attendanceRoutes)
 router.use('/analytics', analyticsRoutes)
+router.use('/registrations', registrationsRoutes)
 
 // API health check
 router.get('/health', (req, res) => {
