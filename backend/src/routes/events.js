@@ -20,6 +20,42 @@ const VALID_STATUSES = [
     'completed'
 ]
 
+// Validate calendar date in strict YYYY-MM-DD format (rejects impossible dates like 2026-02-30)
+function isValidDate(dateStr) {
+    if (typeof dateStr !== 'string') return false
+    const trimmed = dateStr.trim()
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
+    if (!match) return false
+
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+
+    if (year < 1000 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) {
+        return false
+    }
+
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0)
+    const daysInMonth = [0, 31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+    return day <= daysInMonth[month]
+}
+
+// Validate registration deadline as a valid date-time value
+function isValidDateTime(dtStr) {
+    if (typeof dtStr !== 'string' || !dtStr.trim()) return false
+    const trimmed = dtStr.trim()
+    if (isNaN(Date.parse(trimmed))) return false
+
+    // If string starts with YYYY-MM-DD, enforce calendar validity on that date portion
+    const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed)
+    if (match && !isValidDate(match[1])) {
+        return false
+    }
+
+    return true
+}
+
 // Get events with search, category filtering and pagination
 router.get('/', async (req, res) => {
     try {
@@ -242,13 +278,13 @@ router.post('/', async (req, res) => {
             })
         }
 
-        if (isNaN(Date.parse(eventDate))) {
+        if (!isValidDate(eventDate)) {
             return res.status(400).json({
-                message: 'Invalid event date'
+                message: 'Invalid event date. Expected format YYYY-MM-DD with valid calendar day'
             })
         }
 
-        if (eventDeadline && isNaN(Date.parse(eventDeadline))) {
+        if (eventDeadline && !isValidDateTime(eventDeadline)) {
             return res.status(400).json({
                 message: 'Invalid registration deadline'
             })
@@ -308,22 +344,40 @@ router.post('/', async (req, res) => {
 
 // Update an event
 router.put('/:id', async (req, res) => {
+    const eventId = Number(req.params.id)
+
+    if (!Number.isSafeInteger(eventId) || eventId < 1) {
+        return res.status(400).json({
+            message: 'Invalid event ID'
+        })
+    }
+
+    let client
+
     try {
-        const eventId = Number(req.params.id)
+        client = await pool.connect()
+        await client.query('BEGIN')
 
-        if (!Number.isSafeInteger(eventId) || eventId < 1) {
-            return res.status(400).json({
-                message: 'Invalid event ID'
-            })
-        }
-
-        // Fetch existing event first to support partial updates and verify existence
-        const existingResult = await pool.query(
-            'SELECT * FROM events WHERE id = $1',
+        // Lock event row with FOR UPDATE to prevent race conditions with concurrent registrations
+        const existingResult = await client.query(
+            `SELECT
+                id,
+                title,
+                description,
+                category,
+                venue,
+                to_char(event_date, 'YYYY-MM-DD') AS event_date,
+                registration_deadline,
+                capacity,
+                status
+             FROM events
+             WHERE id = $1
+             FOR UPDATE`,
             [eventId]
         )
 
         if (existingResult.rowCount === 0) {
+            await client.query('ROLLBACK')
             return res.status(404).json({
                 message: 'Event not found'
             })
@@ -376,55 +430,81 @@ router.put('/:id', async (req, res) => {
             ? status.trim()
             : existing.status
 
-        if (!eventTitle || !eventCategory || !eventDate || !eventCapacity) {
+        if (!eventTitle || !eventCategory || !eventDate || (capacity === undefined && !existing.capacity)) {
+            await client.query('ROLLBACK')
             return res.status(400).json({
                 message: 'Please provide title, category, event_date and capacity'
             })
         }
 
         if (eventTitle.length > 150) {
+            await client.query('ROLLBACK')
             return res.status(400).json({
                 message: 'Title exceeds the allowed length'
             })
         }
 
         if (eventVenue && eventVenue.length > 120) {
+            await client.query('ROLLBACK')
             return res.status(400).json({
                 message: 'Venue exceeds the allowed length'
             })
         }
 
         if (!VALID_CATEGORIES.includes(eventCategory)) {
+            await client.query('ROLLBACK')
             return res.status(400).json({
                 message: 'Invalid category'
             })
         }
 
         if (!VALID_STATUSES.includes(eventStatus)) {
+            await client.query('ROLLBACK')
             return res.status(400).json({
                 message: 'Invalid status'
             })
         }
 
         if (!Number.isInteger(eventCapacity) || eventCapacity < 1 || eventCapacity > 2147483647) {
+            await client.query('ROLLBACK')
             return res.status(400).json({
                 message: 'Capacity must be a positive integer within valid range'
             })
         }
 
-        if (isNaN(Date.parse(eventDate))) {
+        if (!isValidDate(eventDate)) {
+            await client.query('ROLLBACK')
             return res.status(400).json({
-                message: 'Invalid event date'
+                message: 'Invalid event date. Expected format YYYY-MM-DD with valid calendar day'
             })
         }
 
-        if (eventDeadline && isNaN(Date.parse(eventDeadline))) {
+        if (eventDeadline && !isValidDateTime(eventDeadline)) {
+            await client.query('ROLLBACK')
             return res.status(400).json({
                 message: 'Invalid registration deadline'
             })
         }
 
-        const result = await pool.query(
+        // Count active registrations
+        const regCountResult = await client.query(
+            `SELECT COUNT(*)::int AS total
+             FROM registrations
+             WHERE event_id = $1 AND status = 'registered'`,
+            [eventId]
+        )
+
+        const activeRegistrations = Number(regCountResult.rows[0].total)
+
+        // Prevent reducing capacity below active registrations
+        if (eventCapacity < activeRegistrations) {
+            await client.query('ROLLBACK')
+            return res.status(409).json({
+                message: `Cannot reduce capacity to ${eventCapacity}. Event currently has ${activeRegistrations} active registrations.`
+            })
+        }
+
+        const result = await client.query(
             `UPDATE events
              SET title = $2,
                  description = $3,
@@ -460,8 +540,14 @@ router.put('/:id', async (req, res) => {
             ]
         )
 
+        await client.query('COMMIT')
+
         res.json(result.rows[0])
     } catch (error) {
+        if (client) {
+            await client.query('ROLLBACK').catch(() => {})
+        }
+
         if (error.code === '23514') {
             return res.status(400).json({
                 message: 'Registration deadline must be before the event date'
@@ -479,6 +565,10 @@ router.put('/:id', async (req, res) => {
         res.status(500).json({
             message: 'Could not update event'
         })
+    } finally {
+        if (client) {
+            client.release()
+        }
     }
 })
 
