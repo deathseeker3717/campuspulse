@@ -2,405 +2,321 @@
 
 **Campus Event Management & Analytics Platform**
 
-CampusPulse is a web-based platform designed to simplify campus event management and provide insights into student participation and event engagement.
+CampusPulse is a web application for managing campus activities in one place. It brings together student records, event creation, registrations, attendance tracking, and participation analytics.
 
-The platform brings student management, event creation, registrations, attendance tracking, and analytics together in one dashboard.
-
-Built as an academic capstone project using React, Node.js, Express, and PostgreSQL.
-
-> **Project status:** Under active development. The frontend dashboard and mock API are available on the `dev` branch. Backend API and PostgreSQL integration are under development.
-
----
+Built as an academic capstone project with **React, Vite, Node.js, Express, and PostgreSQL**.
 
 ## Features
 
-### Dashboard
-- Overview of students, events, registrations, and attendance.
-- Visual summaries of campus activity.
-- Quick access to important platform sections.
+- **Dashboard:** Overview of students, events, registrations, and attendance.
+- **Student management:** Search, filter, paginate, create, update, and delete student records.
+- **Event management:** Create and manage events, view event details, check registration counts, and enforce event capacity and registration deadlines.
+- **Registrations:** Register students for events, view registration details, and cancel registrations.
+- **Attendance:** Mark attendance individually or in bulk.
+- **Analytics:** Summary statistics, top events, department participation, attendance rates, and monthly registration trends.
+- **Authentication:** Login and logout using an HttpOnly authentication cookie.
+- **Staff management:** Admin users can create Admin and Organizer accounts.
+- **Role-based access:** Permissions are checked by backend middleware as well as the frontend.
 
-### Student Management
-- View and manage student records.
-- Search students.
-- Filter by department and academic year.
-- Paginated student listing.
+## Technology stack
 
-### Event Management
-- Browse campus events.
-- Create and edit event information.
-- View individual event details.
-- Organize events by category.
-
-### Registration Management
-- View student registrations.
-- Filter registrations by event.
-- Track student participation.
-- Manage registration records.
-
-### Attendance Management
-- View registered students for an event.
-- Record attendance.
-- Support individual and bulk attendance operations.
-
-### Analytics Dashboard
-- Top events by registrations.
-- Department-wise participation.
-- Attendance statistics.
-- Monthly registration trends.
-
----
-
-## Technology Stack
-
-| Layer | Technology |
+| Layer | Technologies |
 |---|---|
-| Frontend | React 18 |
-| Build Tool | Vite |
-| Styling | Tailwind CSS |
+| Frontend | React 18, Vite |
 | Routing | React Router |
-| Data Visualization | Recharts |
+| Styling | Tailwind CSS |
+| Charts | Recharts |
 | Icons | Lucide React |
-| Backend | Node.js |
-| Backend Framework | Express.js |
+| Backend | Node.js, Express 5 |
 | Database | PostgreSQL |
-| Database Driver | node-postgres (`pg`) |
+| Database driver | node-postgres (`pg`) |
+| Authentication | JSON Web Tokens, HttpOnly cookies |
+| Password hashing | bcryptjs |
+| Development | Git, GitHub, Nodemon |
 
----
+## Roles and permissions
 
-## Project Architecture
+| Capability | Admin | Organizer |
+|---|:---:|:---:|
+| View students | Yes | Yes |
+| Create, update, and delete students | Yes | No |
+| View and manage events | Yes | Yes |
+| Manage registrations | Yes | Yes |
+| Manage attendance | Yes | Yes |
+| View analytics | Yes | Yes |
+| Create staff accounts | Yes | No |
 
-CampusPulse follows a client-server architecture.
+## Architecture
 
-```text
-                 CampusPulse
-                      |
-          +-----------+-----------+
-          |                       |
-       Frontend                 Backend
-          |                       |
-    React + Vite             Node.js
-          |                       |
-    React Router               Express
-          |                       |
-    API Service                 REST API
-          |                       |
-          +---------- HTTP -------+
-                      |
-                  PostgreSQL
-```
+CampusPulse uses a client-server architecture:
 
-The frontend communicates with the backend through REST API endpoints. The backend handles application logic and database operations.
+1. The React frontend renders pages and collects user input.
+2. The frontend API service sends HTTP requests to the Express backend.
+3. Express routes validate requests, apply authentication and role checks, and query PostgreSQL.
+4. PostgreSQL stores users, departments, students, events, registrations, and attendance.
+5. Analytics endpoints aggregate database records and return data for dashboard charts.
 
-During frontend development, an in-memory mock API allows the application to run without a database connection.
+During local development, Vite proxies requests beginning with `/api` to the backend at `http://localhost:3000`.
 
----
-
-## Repository Structure
+## Repository structure
 
 ```text
 campuspulse/
-│
 ├── backend/
-│   ├── package.json
-│   └── server.js
-│
+│   ├── scripts/
+│   │   └── createAdmin.js
+│   ├── src/
+│   │   ├── config/
+│   │   ├── middleware/
+│   │   ├── routes/
+│   │   ├── app.js
+│   │   └── server.js
+│   └── package.json
 ├── database/
+│   ├── migrations/
+│   │   └── 001_create_users.sql
 │   ├── schema.sql
-│   ├── seed.sql
-│   └── analytics.sql
-│
+│   └── seed.sql
 ├── frontend/
 │   ├── docs/
 │   │   └── API.md
-│   │
-│   ├── public/
-│   │
 │   ├── src/
 │   │   ├── charts/
 │   │   ├── components/
-│   │   │   ├── events/
-│   │   │   ├── layout/
-│   │   │   ├── students/
-│   │   │   └── ui/
-│   │   │
+│   │   ├── context/
 │   │   ├── hooks/
 │   │   ├── pages/
-│   │   ├── services/
-│   │   └── utils/
-│   │
+│   │   └── services/
 │   ├── .env.example
-│   ├── package.json
-│   └── vite.config.js
-│
+│   └── package.json
 └── README.md
 ```
 
----
+# Setup: run the complete project locally
 
-## Getting Started
+## Prerequisites
 
-### Prerequisites
+Install the following before starting:
 
-Make sure you have installed:
+- **Git** — to clone the repository.
+- **Node.js (LTS) and npm** — to install and run the frontend and backend.
+- **PostgreSQL** — to store application data.
 
-- Node.js (LTS recommended)
-- npm
-- Git
+You will also need a local PostgreSQL user and permission to create a database. Make sure PostgreSQL is running before continuing.
 
-PostgreSQL is required when using the database-backed application. It is not required for frontend mock mode.
-
-### 1. Clone the Repository
+## 1. Clone the repository
 
 ```bash
 git clone https://github.com/deathseeker3717/campuspulse.git
-
 cd campuspulse
 ```
 
-### 2. Set Up the Frontend
+## 2. Create the PostgreSQL database
+
+Create a new, empty database named `campuspulse_dev`:
 
 ```bash
-cd frontend
-
-npm install
-
-cp .env.example .env
-
-npm run dev
+createdb campuspulse_dev
 ```
 
-The frontend will normally be available at:
+If your local PostgreSQL setup requires a username, use:
 
-`http://localhost:5173`
+```bash
+createdb -U postgres campuspulse_dev
+```
 
-### 3. Set Up the Backend
+Apply the SQL files in this exact order:
 
-Open a second terminal from the project root:
+```bash
+psql -d campuspulse_dev -f database/schema.sql
+psql -d campuspulse_dev -f database/seed.sql
+psql -d campuspulse_dev -f database/migrations/001_create_users.sql
+```
+
+The order matters: the users migration uses the `set_updated_at()` function created by the main schema.
+
+**Important:** These commands are for a fresh database. The seed script inserts sample departments, students, events, registrations, and attendance. Do not rerun the schema or seed script on an existing populated database.
+
+If you use pgAdmin instead of the terminal, create the `campuspulse_dev` database, open its Query Tool, and execute the same three SQL files in the order shown above.
+
+## 3. Configure the backend
+
+Create a file named `.env` inside the `backend` folder. Do not commit this file.
+
+Example `backend/.env`:
+
+```env
+PORT=3000
+DATABASE_URL=postgresql://postgres:YOUR_POSTGRES_PASSWORD@localhost:5432/campuspulse_dev
+FRONTEND_URL=http://localhost:5173
+NODE_ENV=development
+JWT_SECRET=replace_with_a_long_random_secret
+
+# Used only for the initial Admin account setup
+ADMIN_NAME=CampusPulse Admin
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=replace_with_a_strong_password
+```
+
+Replace the PostgreSQL username and password with your own local credentials. Generate a strong, unique `JWT_SECRET`. Use a strong Admin password.
+
+Install backend dependencies:
 
 ```bash
 cd backend
-
-npm install
+npm ci
 ```
 
-Create a `.env` file inside the `backend/` directory:
-
-```env
-PORT=5000
-```
-
-Start the Express server:
+Create the initial Admin account once:
 
 ```bash
-npm start
+node scripts/createAdmin.js
 ```
 
-The current backend health endpoint is available at:
+The script reads `ADMIN_NAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` from `backend/.env` and stores a bcrypt hash of the password in PostgreSQL. Run this only after applying the users migration. It will stop if an Admin account already exists.
 
-`http://localhost:5000`
+Start the backend:
 
-The full resource API routes and PostgreSQL integration are still being implemented.
-
----
-
-## Environment Configuration
-
-The frontend uses environment variables to switch between mock data and the real backend.
-
-File: `frontend/.env`
-
-```env
-VITE_USE_MOCK=true
-VITE_API_URL=/api
+```bash
+npm run dev
 ```
 
-| Variable | Value | Purpose |
-|---|---|---|
-| `VITE_USE_MOCK` | `true` | Uses built-in mock data |
-| `VITE_USE_MOCK` | `false` | Sends requests to the backend |
-| `VITE_API_URL` | `/api` | API base URL |
+The backend should be available at `http://localhost:3000`. Keep this terminal running.
 
-### Mock Mode
+## 4. Configure and run the frontend
 
-When:
+Open a second terminal at the repository root:
 
-```env
-VITE_USE_MOCK=true
+```bash
+cd frontend
+npm ci
+cp .env.example .env
+npm run dev
 ```
 
-The application uses its in-memory mock API. The backend and PostgreSQL database are not required.
-
-### Real API Mode
-
-When:
+The frontend environment file should contain:
 
 ```env
 VITE_USE_MOCK=false
 VITE_API_URL=/api
 ```
 
-The frontend sends requests to the Express API.
+The supplied `.env.example` already contains these values. Real API mode is the default. Set `VITE_USE_MOCK=true` only when you intentionally want to run the frontend with in-memory mock data.
 
-The Vite development server proxies `/api` requests to:
+The frontend should be available at `http://localhost:5173`. Keep this terminal running too.
 
-`http://localhost:5000`
+## 5. Verify the setup
 
-Real API mode requires the corresponding backend routes and database integration to be implemented.
+Open these URLs in a browser:
 
----
+- Frontend: `http://localhost:5173`
+- Backend health: `http://localhost:3000/api/health`
+- Database health: `http://localhost:3000/api/health/db`
 
-## Database
+The database health endpoint should report a successful PostgreSQL connection. Then sign in using the Admin email and password configured in `backend/.env`.
 
-CampusPulse uses PostgreSQL as its relational database.
+## Common setup problems
 
-The intended core entities are:
+- **Database connection failed:** Confirm PostgreSQL is running and `DATABASE_URL` contains the correct username, password, port, and database name.
+- **Backend cannot start:** Confirm `backend/.env` exists and backend dependencies were installed with `npm ci`.
+- **Frontend cannot reach the API:** Start the backend on port `3000` and confirm the frontend is using `VITE_API_URL=/api`.
+- **Admin creation fails:** Confirm the users migration has completed and the `ADMIN_*` values are present in `backend/.env`. Do not run the setup script again if an Admin account already exists.
+- **Port already in use:** Stop the other process using the port or configure a different backend port and update the Vite proxy target in `frontend/vite.config.js`.
 
-- `students`
-- `events`
-- `registrations`
-- `attendance`
+## Environment variables
 
-The database layer will handle:
+### Backend: `backend/.env`
 
-- Student and event records.
-- Student-event relationships.
-- Registration lifecycle.
-- Attendance records.
-- Referential integrity and data validation.
-- Analytics queries.
-
-The `database/` directory currently contains the planned SQL file locations. The schema, seed data, and analytics scripts are still to be implemented.
-
----
-
-## API Documentation
-
-The frontend API contract is documented in:
-
-[`frontend/docs/API.md`](frontend/docs/API.md)
-
-### Expected API Endpoints
-
-| Module | Method | Endpoint |
-|---|---|---|
-| Students | GET | `/api/students` |
-| Students | POST | `/api/students` |
-| Students | PUT | `/api/students/:id` |
-| Students | DELETE | `/api/students/:id` |
-| Events | GET | `/api/events` |
-| Events | GET | `/api/events/:id` |
-| Events | POST | `/api/events` |
-| Events | PUT | `/api/events/:id` |
-| Events | DELETE | `/api/events/:id` |
-| Registrations | GET | `/api/registrations` |
-| Registrations | POST | `/api/registrations` |
-| Registrations | DELETE | `/api/registrations/:id` |
-| Attendance | GET | `/api/attendance` |
-| Attendance | POST | `/api/attendance` |
-| Attendance | POST | `/api/attendance/bulk` |
-| Analytics | GET | `/api/analytics/summary` |
-| Analytics | GET | `/api/analytics/top-events` |
-| Analytics | GET | `/api/analytics/departments` |
-| Analytics | GET | `/api/analytics/attendance` |
-| Analytics | GET | `/api/analytics/monthly` |
-
-These are the frontend's expected routes, not a claim that they are all implemented.
-
-### Standard Paginated Response
-
-List endpoints are expected to return:
-
-```json
-{
-  "data": [],
-  "total": 0,
-  "page": 1,
-  "limit": 10
-}
-```
-
-The API contract specifies HTTP `409 Conflict` for duplicate registrations or events that have reached capacity.
-
----
-
-## Team
-
-| Member | Responsibility |
+| Variable | Purpose |
 |---|---|
-| Aditya Kumar | Backend Development & Integration |
-| Shaurya Sharma | Database Design & PostgreSQL |
-| Aryan Goyal | Frontend Development |
-| Harshvardhan Dhankhar | Analytics & Testing |
+| `PORT` | Backend port; defaults to `3000` |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `FRONTEND_URL` | Allowed frontend origin for credentialed CORS |
+| `NODE_ENV` | Runtime environment; production enables secure cookies |
+| `JWT_SECRET` | Secret used to sign authentication tokens |
+| `ADMIN_NAME` | Initial Admin name for the setup script |
+| `ADMIN_EMAIL` | Initial Admin email for the setup script |
+| `ADMIN_PASSWORD` | Initial Admin password for the setup script |
 
----
+The `ADMIN_*` values are only required when creating the initial Admin account.
 
-## Development Workflow
+### Frontend: `frontend/.env`
 
-The project uses Git and GitHub for collaborative development.
+| Variable | Purpose |
+|---|---|
+| `VITE_USE_MOCK` | Set to `true` to use mock data; otherwise the real API is used |
+| `VITE_API_URL` | API base path; normally `/api` |
 
-### Branch Strategy
+Never place secrets in frontend environment variables. Vite exposes `VITE_*` values to browser code.
 
-- `main` — stable project branch.
+## API overview
+
+All backend routes use the `/api` prefix. Request and response details are documented in [frontend/docs/API.md](frontend/docs/API.md).
+
+| Module | Methods and endpoints |
+|---|---|
+| Health | `GET /health`, `GET /health/db` |
+| Authentication | `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` |
+| Staff | `POST /auth/users` (Admin only) |
+| Students | `GET /students`, `POST /students`, `PUT /students/:id`, `DELETE /students/:id` |
+| Events | `GET /events`, `GET /events/:id`, `POST /events`, `PUT /events/:id`, `DELETE /events/:id` |
+| Registrations | `GET /registrations`, `POST /registrations`, `DELETE /registrations/:id` |
+| Attendance | `GET /attendance`, `POST /attendance`, `POST /attendance/bulk` |
+| Analytics | `GET /analytics/summary`, `GET /analytics/top-events`, `GET /analytics/departments`, `GET /analytics/attendance`, `GET /analytics/monthly` |
+
+Health endpoints are public. Login is required for application resources. Student mutations and staff account creation are restricted to Admin users by the backend.
+
+## Authentication and security notes
+
+- Passwords are stored as bcrypt hashes, not plain text.
+- Login issues a signed JWT in an HttpOnly cookie.
+- The frontend sends requests with credentials enabled.
+- The backend loads the current user from PostgreSQL and checks whether the account is active.
+- Role authorization is enforced by backend middleware.
+- Local environment files, database passwords, and JWT secrets must never be committed.
+
+For production deployment, configure HTTPS, the correct frontend origin, secure environment variables, and production-appropriate cookie and security settings.
+
+## Development workflow
+
+The project uses this branch strategy:
+
+- `main` — stable versions.
 - `dev` — shared integration branch.
-- `feature/*` — individual feature branches.
+- `feature/*` — individual features and fixes.
 
-### Contribution Workflow
+Recommended workflow:
 
-1. Pull the latest changes from `dev`.
-2. Create a feature branch.
-3. Implement your changes.
-4. Test your work locally.
-5. Commit and push your branch.
-6. Open a pull request targeting `dev`.
+1. Update the local `dev` branch.
+2. Create a feature branch from `dev`.
+3. Implement and test the changes.
+4. Commit and push the feature branch.
+5. Open a Pull Request targeting `dev`.
+6. Merge tested changes from `dev` into `main` through a Pull Request.
 
 Example:
 
 ```bash
 git switch dev
-
-git pull origin dev
-
+git pull --ff-only origin dev
 git switch -c feature/your-feature
 
-# Make your changes
-
+# Make and test your changes
 git add .
-
 git commit -m "feat: describe your change"
-
 git push -u origin feature/your-feature
 ```
 
-Avoid pushing feature work directly to `main` or `dev`.
+Avoid pushing feature work directly to `main` or `dev`. Never commit `.env` files, database credentials, JWT secrets, or other private configuration.
 
----
+## Team
 
-## Development Principles
-
-- Maintain a consistent API contract between frontend and backend.
-- Keep database relationships and constraints explicit.
-- Validate incoming API data.
-- Handle duplicate registrations and event capacity correctly.
-- Use transactions for operations that require multiple related database changes.
-- Keep secrets and environment files out of version control.
-- Test changes before opening pull requests.
-
----
-
-## Project Status
-
-CampusPulse is actively under development.
-
-Current development priorities include:
-
-- Completing the PostgreSQL schema and seed data.
-- Establishing the backend database connection.
-- Implementing REST API routes and controllers.
-- Integrating the frontend with the real backend.
-- Implementing analytics queries.
-- Testing database integrity and application workflows.
-
----
+| Member | Responsibility |
+|---|---|
+| Aditya Kumar | Backend development and integration |
+| Shaurya Sharma | Database design and PostgreSQL |
+| Aryan Goyal | Frontend development |
+| Harshvardhan Dhankhar | Analytics and testing |
 
 ## License
 
