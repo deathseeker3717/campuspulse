@@ -22,6 +22,7 @@ const VALID_STATUSES = [
 
 // Validate calendar date in strict YYYY-MM-DD format (rejects impossible dates like 2026-02-30)
 function isValidDate(dateStr) {
+    if (dateStr instanceof Date) return !isNaN(dateStr.getTime())
     if (typeof dateStr !== 'string') return false
     const trimmed = dateStr.trim()
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
@@ -43,6 +44,7 @@ function isValidDate(dateStr) {
 
 // Validate registration deadline as a valid date-time value
 function isValidDateTime(dtStr) {
+    if (dtStr instanceof Date) return !isNaN(dtStr.getTime())
     if (typeof dtStr !== 'string' || !dtStr.trim()) return false
     const trimmed = dtStr.trim()
     if (isNaN(Date.parse(trimmed))) return false

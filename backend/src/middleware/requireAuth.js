@@ -28,7 +28,7 @@ async function requireAuth(req, res, next) {
         })
     }
 
-    if (!decoded.sub || typeof decoded.sub !== 'string') {
+    if (!decoded.sub || typeof decoded.sub !== 'string' || !/^\d+$/.test(decoded.sub)) {
         return res.status(401).json({
             message: 'Invalid token'
         })
