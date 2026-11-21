@@ -52,6 +52,7 @@ export default function Students() {
       } else {
         toast.error(err.message || 'Operation failed');
       }
+      throw err;
     }
   }
 

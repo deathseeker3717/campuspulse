@@ -33,7 +33,8 @@ export default function StudentForm({ initial, onSubmit, onCancel }) {
     try {
       await onSubmit({ ...values, name: values.name.trim(), email: values.email.trim() });
     } catch (err) {
-      setServerError(err.message);
+      setServerError(err.message || 'Failed to save student');
+    } finally {
       setSaving(false);
     }
   }

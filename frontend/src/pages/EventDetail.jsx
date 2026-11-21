@@ -27,7 +27,7 @@ export default function EventDetail() {
     setFormError('');
     if (students.length === 0) {
       try {
-        const res = await api.students.list({ limit: 1000 });
+        const res = await api.students.list({ limit: 100 });
         setStudents(res.data);
       } catch (err) {
         setFormError(err.message || 'Could not load students');

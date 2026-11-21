@@ -15,7 +15,7 @@ export default function Attendance() {
   const [markingId, setMarkingId] = useState(null);
   const [bulkStatus, setBulkStatus] = useState('');
 
-  const { data: events } = useFetch(async () => (await api.events.list({ limit: 1000 })).data, []);
+  const { data: events } = useFetch(async () => (await api.events.list({ limit: 100 })).data, []);
   const { data: rows, loading, error, reload, setData } = useFetch(
     () => (eventId ? api.attendance.listForEvent(eventId) : Promise.resolve([])),
     [eventId]

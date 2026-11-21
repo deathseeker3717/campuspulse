@@ -4,6 +4,12 @@ Base URL: `/api`. All bodies are JSON. Errors: non-2xx with `{ "message": "..." 
 List endpoints return `{ "data": [...], "total": 40, "page": 1, "limit": 8 }` (a plain array also works).
 Use HTTP 409 for duplicate registration / event full.
 
+## Authentication & Staff
+- `POST /auth/login` `{ email, password }` -> `{ message, user: { id, name, email, role } }` (Sets HttpOnly cookie `campuspulse_token`)
+- `GET /auth/me` -> `{ user: { id, name, email, role } }`
+- `POST /auth/logout` -> `{ message }` (Clears `campuspulse_token` cookie)
+- `POST /auth/users` `{ name, email, password, role }` (Admin only) -> `{ message, user: { id, name, email, role } }`
+
 ## Students  (`id, name, email, roll_no, department, year, phone`)
 - `GET /students?search=&department=&year=&page=&limit=`
 - `POST /students`, `PUT /students/:id`, `DELETE /students/:id`

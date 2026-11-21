@@ -34,7 +34,7 @@ export default function Registrations() {
   );
   // options for the dropdowns (loaded once)
   const { data: lookups, loading: lookupsLoading, error: lookupsError } = useFetch(async () => {
-    const [s, e] = await Promise.all([api.students.list({ limit: 1000 }), api.events.list({ limit: 1000 })]);
+    const [s, e] = await Promise.all([api.students.list({ limit: 100 }), api.events.list({ limit: 100 })]);
     return { students: s.data, events: e.data };
   }, []);
 

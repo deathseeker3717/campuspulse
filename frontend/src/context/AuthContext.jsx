@@ -38,13 +38,8 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    try {
-      await api.auth.logout();
-    } catch (err) {
-      console.warn('Backend logout call failed, clearing local session anyway:', err.message);
-    } finally {
-      setUser(null);
-    }
+    await api.auth.logout();
+    setUser(null);
   };
 
   const isAdmin = user?.role === 'admin';
