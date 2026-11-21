@@ -3,7 +3,9 @@
 // Pages only ever import `api` from here. With VITE_USE_MOCK=true they get the
 // in-memory dummy data; with VITE_USE_MOCK=false the same calls hit the Express API.
 //
-// Expected Express routes (agree on these with Aditya - see docs/API.md):
+// Expected Express routes:
+//   POST   /auth/login          GET /auth/me                 POST /auth/logout
+//   POST   /auth/users (admin only)
 //   GET    /students?search=&department=&year=&page=&limit=   -> { data, total, page, limit }
 //   POST   /students            PUT /students/:id            DELETE /students/:id
 //   GET    /events?search=&category=&page=&limit=             -> { data, total, page, limit }
@@ -16,7 +18,9 @@
 //   GET    /analytics/summary | top-events | departments | attendance | monthly
 import { mockApi } from './mockApi.js';
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+// Real API mode is the default. Mock data remains available only when it is
+// explicitly requested for isolated UI development.
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 const BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
 function qs(params = {}) {
@@ -33,21 +37,28 @@ async function http(path, { method = 'GET', body, params } = {}) {
   try {
     res = await fetch(`${BASE_URL}${path}${qs(params)}`, {
       method,
+      credentials: 'include',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw new Error('Cannot reach the server. Is the backend running?');
   }
+
   let payload = null;
   try {
-    payload = await res.json();
+    const text = await res.text();
+    if (text) {
+      payload = JSON.parse(text);
+    }
   } catch {
-    /* empty body (e.g. 204) */
+    /* empty or non-JSON body (e.g. 204 No Content) */
   }
+
   if (!res.ok) {
     const err = new Error(payload?.message || payload?.error || `Request failed (${res.status})`);
     err.status = res.status;
+    err.data = payload;
     throw err;
   }
   return payload;
@@ -60,10 +71,17 @@ function asPage(payload, params = {}) {
   }
   return payload;
 }
+
 // Accept either { data: ... } or the raw value.
 const unwrap = (p) => (p && !Array.isArray(p) && p.data !== undefined && p.total === undefined ? p.data : p);
 
 const realApi = {
+  auth: {
+    login: (body) => http('/auth/login', { method: 'POST', body }),
+    me: () => http('/auth/me'),
+    logout: () => http('/auth/logout', { method: 'POST' }),
+    createStaff: (body) => http('/auth/users', { method: 'POST', body }),
+  },
   students: {
     list: async (p) => asPage(await http('/students', { params: p }), p),
     create: (body) => http('/students', { method: 'POST', body }).then(unwrap),

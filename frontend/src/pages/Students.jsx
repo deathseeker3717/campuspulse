@@ -14,10 +14,12 @@ import StudentForm from '../components/students/StudentForm.jsx';
 import useFetch from '../hooks/useFetch.js';
 import useDebounce from '../hooks/useDebounce.js';
 import { api } from '../services/api.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { DEPARTMENTS, PAGE_SIZE, YEARS } from '../utils/constants.js';
 
 export default function Students() {
   const toast = useToast();
+  const { isAdmin } = useAuth();
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('');
   const [year, setYear] = useState('');
@@ -38,11 +40,19 @@ export default function Students() {
   };
 
   async function save(values) {
-    if (editing?.id) await api.students.update(editing.id, values);
-    else await api.students.create(values);
-    toast.success(editing?.id ? 'Student updated' : 'Student added');
-    setEditing(null);
-    reload();
+    try {
+      if (editing?.id) await api.students.update(editing.id, values);
+      else await api.students.create(values);
+      toast.success(editing?.id ? 'Student updated' : 'Student added');
+      setEditing(null);
+      reload();
+    } catch (err) {
+      if (err.status === 403) {
+        toast.error('Permission denied: Only Admin accounts can create or edit students');
+      } else {
+        toast.error(err.message || 'Operation failed');
+      }
+    }
   }
 
   async function confirmDelete() {
@@ -52,10 +62,14 @@ export default function Students() {
       toast.success('Student deleted');
       setDeleting(null);
       // if we deleted the last row of the page, go back one page
-      if (data.data.length === 1 && page > 1) setPage(page - 1);
+      if (data?.data?.length === 1 && page > 1) setPage(page - 1);
       else reload();
     } catch (err) {
-      toast.error(err.message);
+      if (err.status === 403) {
+        toast.error('Permission denied: Only Admin accounts can delete students');
+      } else {
+        toast.error(err.message || 'Failed to delete student');
+      }
     } finally {
       setBusy(false);
     }
@@ -65,8 +79,18 @@ export default function Students() {
     <>
       <PageHeader
         title="Students"
-        subtitle="Add, edit, search and filter students."
-        actions={<Button onClick={() => setEditing({})}><Plus size={16} /> Add student</Button>}
+        subtitle={
+          isAdmin
+            ? 'Add, edit, search and filter students.'
+            : 'Browse, search and filter students (Read-only for Organizers).'
+        }
+        actions={
+          isAdmin ? (
+            <Button onClick={() => setEditing({})}>
+              <Plus size={16} /> Add student
+            </Button>
+          ) : null
+        }
       />
 
       <div className="card">
@@ -93,23 +117,29 @@ export default function Students() {
                     <th className="th">Department</th>
                     <th className="th">Year</th>
                     <th className="th hidden md:table-cell">Email</th>
-                    <th className="th text-right">Actions</th>
+                    {isAdmin && <th className="th text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.data.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50">
+                    <tr key={String(s.id)} className="hover:bg-slate-50">
                       <td className="td font-semibold">{s.name}</td>
                       <td className="td text-slate-500">{s.roll_no}</td>
                       <td className="td"><Badge tone="indigo">{s.department}</Badge></td>
                       <td className="td">Year {s.year}</td>
                       <td className="td hidden text-slate-500 md:table-cell">{s.email}</td>
-                      <td className="td">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => setEditing(s)} aria-label="Edit"><Pencil size={15} /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleting(s)} aria-label="Delete"><Trash2 size={15} className="text-rose-500" /></Button>
-                        </div>
-                      </td>
+                      {isAdmin && (
+                        <td className="td">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setEditing(s)} aria-label="Edit">
+                              <Pencil size={15} />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDeleting(s)} aria-label="Delete">
+                              <Trash2 size={15} className="text-rose-500" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -120,17 +150,21 @@ export default function Students() {
         )}
       </div>
 
-      <Modal open={!!editing} title={editing?.id ? 'Edit student' : 'Add student'} onClose={() => setEditing(null)}>
-        {editing && <StudentForm initial={editing} onSubmit={save} onCancel={() => setEditing(null)} />}
-      </Modal>
+      {isAdmin && (
+        <>
+          <Modal open={!!editing} title={editing?.id ? 'Edit student' : 'Add student'} onClose={() => setEditing(null)}>
+            {editing && <StudentForm initial={editing} onSubmit={save} onCancel={() => setEditing(null)} />}
+          </Modal>
 
-      <ConfirmDialog
-        open={!!deleting}
-        message={`Delete ${deleting?.name}? Their registrations and attendance will be removed too.`}
-        loading={busy}
-        onConfirm={confirmDelete}
-        onClose={() => setDeleting(null)}
-      />
+          <ConfirmDialog
+            open={!!deleting}
+            message={`Delete ${deleting?.name}? Their registrations and attendance will be removed too.`}
+            loading={busy}
+            onConfirm={confirmDelete}
+            onClose={() => setDeleting(null)}
+          />
+        </>
+      )}
     </>
   );
 }

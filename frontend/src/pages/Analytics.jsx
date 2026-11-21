@@ -58,7 +58,7 @@ export default function Analytics() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {attendance.map((a) => (
-                <tr key={a.event_id}>
+                <tr key={String(a.event_id)}>
                   <td className="td font-semibold">{a.title}</td>
                   <td className="td">{a.registered}</td>
                   <td className="td">{a.present}</td>

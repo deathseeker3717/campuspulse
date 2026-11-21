@@ -12,6 +12,8 @@ import { formatDate, pct } from '../utils/format.js';
 export default function Attendance() {
   const toast = useToast();
   const [eventId, setEventId] = useState('');
+  const [markingId, setMarkingId] = useState(null);
+  const [bulkStatus, setBulkStatus] = useState('');
 
   const { data: events } = useFetch(async () => (await api.events.list({ limit: 1000 })).data, []);
   const { data: rows, loading, error, reload, setData } = useFetch(
@@ -26,23 +28,31 @@ export default function Attendance() {
 
   // optimistic update: change the row immediately, roll back if the request fails
   async function mark(row, status) {
+    if (markingId) return;
     const previous = list;
-    setData(list.map((r) => (r.id === row.id ? { ...r, attendance_status: status } : r)));
+    setMarkingId(String(row.id));
+    setData(list.map((r) => (String(r.id) === String(row.id) ? { ...r, attendance_status: status } : r)));
     try {
-      await api.attendance.mark({ registration_id: row.id, status });
+      await api.attendance.mark({ registration_id: String(row.id), status });
     } catch (err) {
       setData(previous);
       toast.error(err.message);
+    } finally {
+      setMarkingId(null);
     }
   }
 
   async function markAll(status) {
+    if (bulkStatus) return;
+    setBulkStatus(status);
     try {
-      await api.attendance.markAll({ event_id: Number(eventId), status });
+      await api.attendance.markAll({ event_id, status });
       toast.success(`Everyone marked ${status}`);
       reload();
     } catch (err) {
       toast.error(err.message);
+    } finally {
+      setBulkStatus('');
     }
   }
 
@@ -56,7 +66,7 @@ export default function Attendance() {
           value={eventId}
           onChange={setEventId}
           placeholder="Select an event..."
-          options={(events || []).map((e) => ({ value: e.id, label: `${e.title} - ${formatDate(e.event_date)}` }))}
+          options={(events || []).map((e) => ({ value: String(e.id), label: `${e.title} - ${formatDate(e.event_date)}` }))}
         />
       </div>
 
@@ -79,8 +89,8 @@ export default function Attendance() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="secondary" onClick={() => markAll('present')}>Mark all present</Button>
-              <Button size="sm" variant="secondary" onClick={() => markAll('absent')}>Mark all absent</Button>
+              <Button size="sm" variant="secondary" loading={bulkStatus === 'present'} disabled={Boolean(bulkStatus)} onClick={() => markAll('present')}>Mark all present</Button>
+              <Button size="sm" variant="secondary" loading={bulkStatus === 'absent'} disabled={Boolean(bulkStatus)} onClick={() => markAll('absent')}>Mark all absent</Button>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -95,15 +105,16 @@ export default function Attendance() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {list.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50">
+                  <tr key={String(r.id)} className="hover:bg-slate-50">
                     <td className="td font-semibold">{r.student_name}</td>
                     <td className="td text-slate-500">{r.roll_no}</td>
                     <td className="td">{r.department}</td>
                     <td className="td">
                       <div className="flex justify-end gap-2">
                         <button
+                          disabled={Boolean(markingId)}
                           onClick={() => mark(r, 'present')}
-                          className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                          className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                             r.attendance_status === 'present'
                               ? 'border-emerald-600 bg-emerald-600 text-white'
                               : 'border-slate-300 text-slate-600 hover:bg-emerald-50'
@@ -112,8 +123,9 @@ export default function Attendance() {
                           <Check size={14} /> Present
                         </button>
                         <button
+                          disabled={Boolean(markingId)}
                           onClick={() => mark(r, 'absent')}
-                          className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                          className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                             r.attendance_status === 'absent'
                               ? 'border-rose-600 bg-rose-600 text-white'
                               : 'border-slate-300 text-slate-600 hover:bg-rose-50'
