@@ -59,7 +59,7 @@ export default function Dashboard() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {next.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+              <li key={String(e.id)} className="flex flex-wrap items-center justify-between gap-2 py-3">
                 <div>
                   <Link to={`/events/${e.id}`} className="font-semibold hover:text-brand-600">{e.title}</Link>
                   <p className="text-xs text-slate-500">{formatDate(e.event_date)} &middot; {e.venue}</p>

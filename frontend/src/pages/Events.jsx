@@ -84,7 +84,7 @@ export default function Events() {
         <>
           <div className={`grid gap-5 transition-opacity sm:grid-cols-2 xl:grid-cols-3 ${loading ? 'opacity-50' : ''}`}>
             {data.data.map((ev) => (
-              <EventCard key={ev.id} event={ev} onEdit={setEditing} onDelete={setDeleting} />
+              <EventCard key={String(ev.id)} event={ev} onEdit={setEditing} onDelete={setDeleting} />
             ))}
           </div>
           <div className="card mt-5">

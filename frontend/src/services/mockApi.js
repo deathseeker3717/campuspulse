@@ -209,4 +209,40 @@ export const mockApi = {
       return delay(Object.keys(map).sort().map((month) => ({ month, registrations: map[month] })));
     },
   },
+
+  auth: {
+    login({ email, password }) {
+      if (!email || !password) return fail('Email and password are required', 400);
+      const isOrganizer = String(email).toLowerCase().includes('organizer');
+      const user = {
+        id: isOrganizer ? '2' : '1',
+        name: isOrganizer ? 'Organizer User' : 'Admin User',
+        email: String(email).toLowerCase(),
+        role: isOrganizer ? 'organizer' : 'admin',
+      };
+      try { sessionStorage.setItem('mock_user', JSON.stringify(user)); } catch {}
+      return delay({ message: 'Login successful', user });
+    },
+    me() {
+      try {
+        const stored = sessionStorage.getItem('mock_user');
+        if (stored) return delay({ user: JSON.parse(stored) });
+      } catch {}
+      const defaultUser = { id: '1', name: 'Admin User', email: 'admin@campus.edu', role: 'admin' };
+      return delay({ user: defaultUser });
+    },
+    logout() {
+      try { sessionStorage.removeItem('mock_user'); } catch {}
+      return delay({ message: 'Logout successful' });
+    },
+    createStaff(body) {
+      if (!body.name || !body.email || !body.password || !body.role) {
+        return fail('Name, email, password and role are required', 400);
+      }
+      return delay({
+        message: 'Staff account created successfully',
+        user: { id: String(Date.now()), name: body.name, email: body.email, role: body.role }
+      });
+    },
+  },
 };

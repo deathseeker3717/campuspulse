@@ -26,8 +26,12 @@ export default function EventDetail() {
     setStudentId('');
     setFormError('');
     if (students.length === 0) {
-      const res = await api.students.list({ limit: 1000 });
-      setStudents(res.data);
+      try {
+        const res = await api.students.list({ limit: 100 });
+        setStudents(res.data);
+      } catch (err) {
+        setFormError(err.message || 'Could not load students');
+      }
     }
   }
 
@@ -36,7 +40,8 @@ export default function EventDetail() {
     setSaving(true);
     setFormError('');
     try {
-      await api.registrations.create({ student_id: Number(studentId), event_id: Number(id) });
+      // Keep BIGINT IDs as strings; the backend validates and converts them.
+      await api.registrations.create({ student_id: studentId, event_id: id });
       toast.success('Student registered');
       setOpen(false);
       reload();
@@ -61,8 +66,8 @@ export default function EventDetail() {
   if (error) return <ErrorBox message={error} onRetry={reload} />;
 
   const registrations = ev.registrations || [];
-  const registeredIds = new Set(registrations.map((r) => r.student_id));
-  const available = students.filter((s) => !registeredIds.has(s.id));
+  const registeredIds = new Set(registrations.map((r) => String(r.student_id)));
+  const available = students.filter((s) => !registeredIds.has(String(s.id)));
   const full = ev.registered >= ev.capacity;
 
   return (
@@ -107,7 +112,7 @@ export default function EventDetail() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {registrations.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50">
+                  <tr key={String(r.id)} className="hover:bg-slate-50">
                     <td className="td font-semibold">{r.student_name}</td>
                     <td className="td text-slate-500">{r.roll_no}</td>
                     <td className="td">{r.department}</td>
@@ -137,7 +142,7 @@ export default function EventDetail() {
             value={studentId}
             onChange={setStudentId}
             placeholder="Select a student..."
-            options={available.map((s) => ({ value: s.id, label: `${s.name} (${s.roll_no})` }))}
+            options={available.map((s) => ({ value: String(s.id), label: `${s.name} (${s.roll_no})` }))}
           />
         </Field>
         <div className="mt-5 flex justify-end gap-2">

@@ -33,8 +33,8 @@ export default function Registrations() {
     [q, eventFilter, page]
   );
   // options for the dropdowns (loaded once)
-  const { data: lookups } = useFetch(async () => {
-    const [s, e] = await Promise.all([api.students.list({ limit: 1000 }), api.events.list({ limit: 1000 })]);
+  const { data: lookups, loading: lookupsLoading, error: lookupsError } = useFetch(async () => {
+    const [s, e] = await Promise.all([api.students.list({ limit: 100 }), api.events.list({ limit: 100 })]);
     return { students: s.data, events: e.data };
   }, []);
 
@@ -43,7 +43,8 @@ export default function Registrations() {
     setSaving(true);
     setFormError('');
     try {
-      await api.registrations.create({ student_id: Number(form.student_id), event_id: Number(form.event_id) });
+      // Keep BIGINT IDs as strings; the backend validates and converts them.
+      await api.registrations.create({ student_id: form.student_id, event_id: form.event_id });
       toast.success('Registration created');
       setOpen(false);
       setForm({ student_id: '', event_id: '' });
@@ -67,7 +68,7 @@ export default function Registrations() {
     }
   }
 
-  const eventOptions = (lookups?.events || []).map((e) => ({ value: e.id, label: e.title }));
+  const eventOptions = (lookups?.events || []).map((e) => ({ value: String(e.id), label: e.title }));
 
   return (
     <>
@@ -104,7 +105,7 @@ export default function Registrations() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.data.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50">
+                    <tr key={String(r.id)} className="hover:bg-slate-50">
                       <td className="td"><span className="font-semibold">{r.student_name}</span><br /><span className="text-xs text-slate-500">{r.roll_no}</span></td>
                       <td className="td">{r.department}</td>
                       <td className="td"><Link className="font-medium hover:text-brand-600" to={`/events/${r.event_id}`}>{r.event_title}</Link></td>
@@ -124,22 +125,24 @@ export default function Registrations() {
 
       <Modal open={open} title="New registration" onClose={() => setOpen(false)} width="max-w-md">
         <div className="space-y-4">
+          {lookupsError && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{lookupsError}</p>}
           <Field label="Student">
             <Select
               value={form.student_id}
               onChange={(v) => setForm((f) => ({ ...f, student_id: v }))}
+              disabled={lookupsLoading}
               placeholder="Select a student..."
-              options={(lookups?.students || []).map((s) => ({ value: s.id, label: `${s.name} (${s.roll_no})` }))}
+              options={(lookups?.students || []).map((s) => ({ value: String(s.id), label: `${s.name} (${s.roll_no})` }))}
             />
           </Field>
           <Field label="Event">
-            <Select value={form.event_id} onChange={(v) => setForm((f) => ({ ...f, event_id: v }))} placeholder="Select an event..." options={eventOptions} />
+            <Select value={form.event_id} onChange={(v) => setForm((f) => ({ ...f, event_id: v }))} disabled={lookupsLoading} placeholder="Select an event..." options={eventOptions} />
           </Field>
           {formError && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{formError}</p>}
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={create} loading={saving}>Register</Button>
+          <Button onClick={create} loading={saving} disabled={lookupsLoading || Boolean(lookupsError)}>Register</Button>
         </div>
       </Modal>
 
